@@ -1,0 +1,32 @@
+﻿Vendor C - Technical Proposal
+
+=== Page 1 ===
+Functional coverage
+Our solution addresses most functional requirements. Reporting and supplier portal features are planned for a later release.
+
+Architecture
+A cloud-native, event-driven architecture with auto-scaling and published benchmark results for 10,000 concurrent users.
+
+Integration
+Open APIs with extensive documentation and a library of more than 40 pre-built connectors, including SAP, Oracle and Salesforce.
+
+=== Page 2 ===
+Security
+Security is taken seriously by our team. We use industry standard practices to protect data.
+
+Data privacy
+Data is stored in a global cloud. Specific storage locations are assigned by our operations team.
+
+Reliability
+We guarantee 99.99% uptime with active-active multi-region failover, an RTO of 1 hour and an RPO of 5 minutes.
+
+=== Page 3 ===
+Implementation
+A 30-week implementation led by a certified project manager with documented risk mitigation and three comparable client references.
+
+Support
+24x7 support with a named account manager, onsite training and monthly update releases.
+
+Customisation and roadmap
+A fully configurable platform with an open extension framework and a committed roadmap shared under NDA.
+

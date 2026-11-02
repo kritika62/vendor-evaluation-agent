@@ -1,0 +1,15 @@
+Request for Proposal - Parts and Supplier Tracking System
+
+=== Page 1 ===
+Scope
+Maruti requires a system to track spare parts inventory and supplier performance across plants.
+
+Technical requirements
+The solution must integrate with existing ERP systems, encrypt data, and keep all data in India.
+
+=== Page 2 ===
+Timeline
+The system must be fully implemented and live within 6 months of contract signature.
+
+Evaluation
+Proposals are evaluated on technical merit. Commercial terms are assessed separately.

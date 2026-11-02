@@ -1,0 +1,31 @@
+Alpha Systems - Technical Proposal
+
+=== Page 1 ===
+Functional coverage
+Our platform meets all 20 must-have functional requirements listed in the RFP, including parts tracking, supplier portals and reporting. Section 3 maps each requirement to a product module with live demo references.
+
+Architecture
+The solution uses a microservices architecture on Kubernetes with horizontal autoscaling. Load tests at 5,000 concurrent users showed stable response times under 300 ms.
+
+Integration
+We expose a documented REST API and provide pre-built connectors for SAP and Oracle ERP, as well as standard EDI and CSV data exchange.
+
+=== Page 2 ===
+Security
+We hold ISO 27001 and SOC 2 Type II certifications, audited annually. Data is encrypted at rest with AES-256 and in transit with TLS 1.3, with role-based access control and full audit logging.
+
+Data privacy
+All customer data is stored in Indian data centres, with contractual residency guarantees. We comply with the DPDP Act and offer data deletion on request.
+
+Reliability
+We commit to 99.9% uptime with a disaster recovery site in a separate region, an RTO of 4 hours and an RPO of 15 minutes, tested twice a year.
+
+=== Page 3 ===
+Implementation
+Implementation is planned in four phases over 16 weeks with named milestones, a dedicated delivery team and a risk register. We delivered similar projects for two large automotive manufacturers.
+
+Support
+Support is available 24x7 with a 1-hour response time for critical issues, plus onsite training for administrators and quarterly product updates.
+
+Customisation and roadmap
+The platform is highly configurable through low-code workflows, and our published roadmap commits to supplier analytics and AI-based forecasting next year.

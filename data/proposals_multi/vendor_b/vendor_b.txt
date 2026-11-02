@@ -1,0 +1,31 @@
+Beta Soft - Technical Proposal
+
+=== Page 1 ===
+Functional coverage
+The product covers all mandatory functional requirements and several optional ones, including a built-in supplier scorecard and multi-plant inventory views.
+
+Architecture
+A modular monolith deployed on virtual machines. It scales vertically and supports a second node for load sharing.
+
+Integration
+Standard REST APIs are available for most modules. Integration with SAP is supported through a certified partner connector.
+
+=== Page 2 ===
+Security
+We follow ISO 27001 aligned practices and are in the process of certification. Data is encrypted in transit and at rest, with role-based access control.
+
+Data privacy
+Customer data is hosted in a Mumbai cloud region. Data handling follows applicable privacy regulations.
+
+Reliability
+A 99.5% uptime target with nightly backups and a standby environment. Recovery time objective is 12 hours.
+
+=== Page 3 ===
+Implementation
+A 9-month implementation with weekly status reporting. The team will be confirmed after contract signature.
+
+Support
+Business-hours support with email and phone escalation, and online training material.
+
+Customisation and roadmap
+Configuration is possible through settings. Custom features can be developed under a change request.

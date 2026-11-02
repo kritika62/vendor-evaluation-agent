@@ -1,0 +1,2 @@
+Audit logging
+All administrator actions are written to an audit log that is kept for 12 months and can be exported on request.

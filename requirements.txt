@@ -1,0 +1,5 @@
+# Lightweight deps for the DASHBOARD only (what Streamlit Cloud installs)
+streamlit>=1.50
+pandas>=2.0
+plotly>=5.20
+openpyxl>=3.1
