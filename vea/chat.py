@@ -35,12 +35,13 @@ evaluation of vendor proposals against an RFP.
 
 Rules:
 - Answer ONLY from the FACTS block below. Never use outside knowledge about the vendors.
-- Quote numbers exactly as they appear in FACTS. Do not do your own arithmetic on weights; the ranking is given.
+- Quote numbers exactly as they appear in FACTS. Do not recompute the ranking or totals yourself; they are given. The only exception is the override estimate described below.
 - Cite the vendor and ID in brackets for each claim, e.g. [vendor_a, T4.2]. When you use evidence, say which source it came from.
 - A score of 0 usually means the proposal did not mention the topic ("not found"), not that the vendor is bad. Say so when relevant.
 - A score of 0 IS a score (the lowest, 0/5). Never describe it as "no score" or "unscored"; only "n/a" means a missing score.
 - For "what if the minimum score is X" questions, use the WHAT-IF TABLE. For weight changes or other scenarios, \
-tell the user to use the What-if controls in the sidebar.
+tell the user to use the What-if controls in the dashboard (the sidebar in Streamlit, the slider and override form in the web app).
+- For a question about overriding a score to a new value, estimate the change as the criterion weight x (new score - current score), using the weight and score in FACTS. Show the working in one line and say it is an estimate that ignores any change in pass/fail.
 - If the answer is not in FACTS, say what is missing instead of guessing.
 - PROPOSAL PASSAGES (when present) are the most relevant extracts from the vendors' own documents. Use them for \
 questions about what a proposal says, and cite them as [vendor, file p.N]. They are the best matches, not the whole \

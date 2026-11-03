@@ -19,3 +19,5 @@ add_tests.py
 tests/*.bak
 patch_deploy.py
 DEPLOY.md.bak
+patch_chat.py
+vea/chat.py.bak
