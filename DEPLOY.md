@@ -1,8 +1,11 @@
 # Deploying the dashboard (Streamlit Community Cloud, free)
 
+> This guide covers the Streamlit dashboard only. The FastAPI + React app is meant to run locally
+> (no login, one evaluation at a time); see README.md.
+
 ## 0. Security first
-- Your Groq key was pasted in a chat. Revoke it at console.groq.com and make a new one.
-- `.env` is in `.gitignore`. Never push it. Confirm with `git status` before committing.
+- Keep your API key in a local `.env` file. It is listed in `.gitignore`; never commit it.
+- Confirm with `git status` before every commit.
 
 ## 1. Push to GitHub
     git init
@@ -33,3 +36,5 @@ inside company infrastructure (Docker/VM) or keep the app private (Streamlit Clo
 The scoring agent (main.py) needs heavy ML packages and an API key, so run it locally:
     pip install -r requirements-agent.txt
     python main.py --rfp data/rfp/RFP_Parts_Tracking.txt
+
+For the FastAPI backend as well: `pip install -r requirements-api.txt` (includes the agent packages).

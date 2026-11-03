@@ -1,4 +1,4 @@
-# Vendor Evaluation Agent
+﻿# Vendor Evaluation Agent
 
 Reads vendor proposals, scores them against an RFP and a technical rubric using an LLM, and shows the ranking with page-level evidence. A person can review, override scores, download reports and ask questions about the results.
 
@@ -34,7 +34,6 @@ The embedding and reranker models run locally. The LLM is any OpenAI-compatible 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 pip install -r requirements-api.txt
 copy .env.example .env
 ```
@@ -128,3 +127,4 @@ python -m unittest tests.test_pipeline tests.test_dashboard_data tests.test_api_
 
 - Check which AI tools are approved before using real company proposals, and keep confidential data off personal accounts.
 - The sample vendors are fictional.
+
