@@ -1,75 +1,130 @@
-# Vendor technical evaluation agent
+# Vendor Evaluation Agent
 
-Reads vendor proposals, scores them against a technical rubric with page-level evidence,
-and fills an Excel scorecard (ranking, mandatory knockout, summaries, audit log).
+Reads vendor proposals, scores them against an RFP and a technical rubric using an LLM, and shows the ranking with page-level evidence. A person can review, override scores, download reports and ask questions about the results.
 
-## What's new
-- **Any number of vendors.** The Scorecard and Summary sheets are built for however many vendors you run (no 3-vendor limit).
-- **Any mix of formats, several files per vendor.** PDF, Word, PowerPoint, Excel and TXT. A sub-folder in `data/proposals/` is one vendor:
-  `data/proposals/Orion/` can hold Orion's PDF, PPT and Excel together. Loose files sharing a prefix before `__`
-  (`Orion__tech.pdf`, `Orion__support.docx`) are also one vendor; any other loose file is its own vendor.
-  `--per-file` makes every file its own vendor (to check that all formats are read the same way).
-- **Sub-criteria.** The `SubCriteria` sheet splits a criterion into narrower questions (e.g. Security -> access control,
-  encryption, certifications, audit logging). Each sub-criterion is scored on its own evidence, and the criterion score is the
-  weighted average (plain code, not AI). Evidence is cited as `file p.N`.
+- **Scoring pipeline** (Python): parse, chunk, embed, retrieve, rerank, LLM scoring, aggregation, Excel scorecard.
+- **Backend** (FastAPI): one endpoint per job, with background evaluations.
+- **Frontend** (React + Vite): upload, run, ranking, evidence, overrides, downloads, chat.
+- **Dashboard** (Streamlit): the original dashboard, still available.
 
-## Pipeline
-Parse (PyMuPDF / python-docx) -> chunk (page-tagged) -> embed (bi-encoder) -> vector index (FAISS)
--> per criterion: retrieve top-k -> cross-encoder rerank -> LLM scores (JSON) -> schema validation
-+ quote verification -> deterministic aggregation -> summary (LLM) -> Excel export.
+## Features
+
+- Any number of vendors; several files per vendor; PDF, Word, PowerPoint, Excel and TXT proposals.
+- 9 criteria with sub-criteria. Each sub-criterion is scored on its own evidence with a quote and a source (`file p.N`). Criterion scores are weighted averages computed by code, not by the AI.
+- Numeric criteria (for example uptime, timeline): the AI only extracts the vendor's number and unit; code converts units and applies the formula against the RFP target.
+- Mandatory criteria act as a pass/fail gate. A vendor below the minimum score (default 3 of 5) on any mandatory criterion is rejected and not ranked. The minimum and shortlist size are adjustable without re-running the AI.
+- Weak or uncertain scores are flagged for human review. Scores can be overridden with a reason; the original AI score is kept.
+- Downloads: PDF, Word, CSV, JSON, Markdown, Excel.
+- Chat assistant that answers from the scorecard and proposal text. Numbers come from code, never from the model.
+
+## How it works
+
+```
+Browser (React, :5173)  ->  FastAPI (:8000)  ->  api/service.py  ->  vea/ pipeline
+                                  |                                      |
+                            api_data/ (plain folders)          LLM API + local models
+```
+
+Pipeline: parse (PyMuPDF, python-docx and others) -> page-tagged chunks -> embeddings (`BAAI/bge-small-en-v1.5`) -> FAISS index -> per criterion: retrieve top 12 -> cross-encoder rerank (`ms-marco-MiniLM-L-6-v2`) to the best 4 -> LLM scores as JSON -> validation and quote check -> deterministic aggregation -> summaries -> Excel export.
+
+The embedding and reranker models run locally. The LLM is any OpenAI-compatible API (Groq by default).
 
 ## Setup (Windows PowerShell)
-    python -m venv .venv
-    .venv\Scripts\Activate.ps1
-    pip install -r requirements.txt
-    copy .env.example .env      # then put your API key in .env
 
-## Run
-    python main.py --mock --yes --rfp data/rfp/RFP_Parts_Tracking.txt   # offline test, no key, no downloads
-    python main.py --rfp data/rfp/RFP_Parts_Tracking.txt --proposals data/proposals --out output/scorecard.xlsx
-    python main.py --samples 3                              # 3 runs per criterion, flags disagreement
-    python -m unittest tests.test_pipeline tests.test_dashboard_data   # tests
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pip install -r requirements-api.txt
+copy .env.example .env
+```
 
-## Scoring methods (set per criterion on the Criteria sheet, column "Method")
-- **Judgement** - the AI compares the evidence with the 1/3/5 anchors.
-- **Lower is better** (timeline, response time): `Score = 5 x (2 x Target - Proposed) / Target`, capped 0-5.
-  On or under target = 5; at 2x the target or later = 0.
-- **Higher is better** (uptime, warranty years): `Score = 5 x (Proposed - Floor) / (Target - Floor)`, capped 0-5.
-- For numeric methods the AI only extracts the vendor's number and unit (with a quote); plain code converts units
-  (days/weeks/months/years) and applies the formula. The calculation is written in the Agent_Log justification.
-- The **Target** comes from the RFP: run with `--rfp data/rfp/YourRFP.pdf`. The agent shows what it found and you
-  press Enter to accept or type a correction (`--yes` skips the question). A number typed in the Criteria sheet's
-  "Target" column overrides the RFP. The targets used are saved on the `Targets` sheet.
+Open `.env` and set your own values. Never commit `.env`; it is listed in `.gitignore`.
 
-## Dashboard
-    streamlit run app.py
-Reads `output/scorecard.xlsx` (or upload it in the sidebar). Tabs: Ranking, Categories, Criteria detail,
-Review queue, Summaries, Targets. The sidebar has what-if controls (mandatory minimum, shortlist size, weights).
-Scores you override in Excel are picked up after you save the file and reload the page.
+| Variable | Purpose |
+|---|---|
+| `LLM_BASE_URL` | OpenAI-compatible endpoint (Groq by default) |
+| `LLM_API_KEY` | Your API key |
+| `LLM_MODEL` | Model name |
+| `EMBED_MODEL` | Embedding model |
+| `RERANK_MODEL` | Reranker model |
 
-## Sub-criteria (SubCriteria sheet)
-One row per sub-criterion: Sub-ID, Criterion ID, name, "What to look for", weight within the criterion (a criterion's
-weights must total 100%), and optional 1/3/5 anchors. A criterion with no rows is scored as a whole. Numeric criteria
-(Lower/Higher is better) cannot have sub-criteria. The shipped rows are drafts taken from your "What to look for" text: edit them.
-In Excel, criterion scores that have sub-criteria are formulas; override the sub-criterion (yellow cell), or type a number
-over the criterion's cell to override it as a whole.
+## Run the web app
+
+Terminal 1, the backend (project folder, venv active):
+
+```powershell
+uvicorn api.main:app --port 8000
+```
+
+Terminal 2, the frontend:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173. Interactive API docs: http://localhost:8000/docs. See `API.md` for the endpoints.
+
+Typical use:
+
+1. Upload the RFP.
+2. Add vendors and their files.
+3. Choose mock or real mode, check the numeric targets, and start the evaluation.
+4. Read the ranking, open a vendor for evidence, override scores if needed, download a report, or ask the chat.
+
+Mock mode makes no LLM calls and gives meaningless scores. It only proves the plumbing works.
+
+## Run from the command line
+
+```powershell
+python main.py --mock --yes --rfp data/rfp/RFP_Parts_Tracking.txt
+python main.py --rfp data/rfp/RFP_Parts_Tracking.txt --proposals data/proposals --out output/scorecard.xlsx --yes
+python main.py --samples 3          # 3 runs per criterion, flags disagreement
+```
+
+## Streamlit dashboard
+
+```powershell
+streamlit run app.py
+```
+
+Reads `output/scorecard.xlsx` (or upload it in the sidebar). Tabs: Ranking, Categories, Criteria detail, Review queue, Summaries, Targets, Ask the assistant.
 
 ## Inputs
-- `template/scorecard_template.xlsx`: the rubric lives on its **Criteria** sheet (edit criteria,
-  weights, mandatory flags, anchors there). If you add or remove criteria, add or remove the matching rows on **Scorecard**.
-- `data/proposals/`: sub-folder per vendor (or one file per vendor); .pdf, .docx, .pptx, .xlsx, .txt. No vendor limit.
 
-## Outputs
-- `output/scorecard.xlsx`: Scorecard (scores + evidence, sub-criteria rows), Summary (rank, shortlist), Agent_Log (audit trail),
-  Vendor_Summaries, Targets, Vendor_Files. Orange score = needs human review. Edit any yellow cell to override; totals recalculate.
-- `output/scorecard.log.json`: raw per-criterion results.
+- `template/scorecard_template.xlsx`: the rubric lives on its Criteria and SubCriteria sheets (criteria, weights, mandatory flags, anchors, sub-criteria). Weights inside one criterion must total 100%. The shipped sub-criteria are drafts; edit them to match your RFP.
+- `data/proposals/`: sample proposals (fictional vendors A, B, C). A sub-folder is one vendor; loose files named `Vendor__anything.ext` share a vendor; any other loose file is its own vendor.
+- `data/rfp/`: a sample RFP.
 
-## What gets flagged for human review
-Not addressed in proposal, low model confidence, quote not found verbatim in the retrieved text,
-cited page not in the retrieved evidence, samples disagree, mandatory criterion below minimum.
+## Scoring methods (Criteria sheet, column "Method")
+
+- **Judgement**: the AI compares the evidence with the 1/3/5 anchors.
+- **Lower is better** (timeline): `Score = 5 x (2 x Target - Proposed) / Target`, capped 0 to 5.
+- **Higher is better** (uptime): `Score = 5 x (Proposed - Floor) / (Target - Floor)`, capped 0 to 5.
+
+Targets come from the RFP text, the Target column of the Criteria sheet, or values typed in the web app. A missing value is flagged, not silently scored as a real answer.
+
+## What gets flagged for review
+
+Not addressed in the proposal, low model confidence, quote not found verbatim in the retrieved text, cited page not in the retrieved evidence, samples disagree, mandatory criterion below the minimum, numeric value not found.
+
+## Tests
+
+```powershell
+python -m unittest tests.test_pipeline tests.test_dashboard_data tests.test_api_service
+```
+
+## Known limitations
+
+- LLM scores vary a little between runs (totals by roughly 0.3 to 0.5). Ranking order and pass/fail have been stable across the real runs so far.
+- A value that is plainly stated in a proposal (for example a timeline) can occasionally be missed. Such items are flagged for review and can be overridden.
+- Free-tier LLM rate limits make real runs slow (minutes), and chat uses the same quota.
+- No login and one evaluation at a time, so it is meant for local use, not public deployment.
+- Scanned PDFs need OCR first.
 
 ## Notes
-- `--mock` uses keyword matching, NOT real scoring. It only proves the plumbing works.
-- Any OpenAI-compatible API works via `LLM_BASE_URL` (Groq default). Check with your mentor which tools are
-  approved before using real company proposals; keep confidential data off personal accounts.
-- Scanned PDFs need OCR first (the parser warns when it finds no text).
+
+- Check which AI tools are approved before using real company proposals, and keep confidential data off personal accounts.
+- The sample vendors are fictional.
