@@ -279,6 +279,53 @@ class Tests(unittest.TestCase):
         self.assertEqual(len(r.search("implementation timeline", k=7)), 7)
 
 
+
+class FocusedRetryTests(unittest.TestCase):
+    """The first extraction says 'not found' although the value is in the text; the focused retry must find it."""
+
+    class SeqLLM:
+        def __init__(self, answers):
+            self.answers = list(answers)
+            self.prompts = []
+
+        def complete_json(self, system, user, *a, **k):
+            self.prompts.append(user)
+            return dict(self.answers.pop(0) if len(self.answers) > 1 else self.answers[0])
+
+    NOT_FOUND = {"found": False, "value": 0, "unit": "", "evidence_quote": "", "pages": []}
+    FOUND = {"found": True, "value": 16, "unit": "weeks",
+             "evidence_quote": "four phases over 16 weeks", "pages": [1]}
+
+    def _setup(self):
+        from vea.config import Settings
+        from vea.ingest import Chunk
+        from vea.retriever import Retriever
+        from vea.rubric import load_rubric
+        criteria, min_s, _ = load_rubric(str(TEMPLATE))
+        t7 = next(c for c in criteria if c.id == "T7")
+        text = "Implementation is planned in four phases over 16 weeks with named milestones and a risk register."
+        chunks = [Chunk(vendor="V", page=1, text=text, source="v.txt")]
+        retriever = Retriever(chunks, Settings(mock=True))     # TF-IDF, no model download
+        return t7, min_s, retriever, Settings(mock=False)      # the LLM code path runs with the fake LLM
+
+    def test_retry_finds_value_after_first_miss(self):
+        t7, min_s, retriever, s = self._setup()
+        llm = self.SeqLLM([self.NOT_FOUND, self.FOUND])
+        r = score_numeric("V", t7, retriever, llm, s, {"value": 6.0, "unit": "months"}, min_s)
+        self.assertEqual(len(llm.prompts), 2)                  # first try plus one focused retry
+        self.assertIn("16 weeks", llm.prompts[1])
+        self.assertEqual(r.score, 5)                           # 16 weeks = 3.7 months, under the 6 month target
+        self.assertNotIn("value not stated", r.review_reason)
+
+    def test_still_flagged_when_retry_also_finds_nothing(self):
+        t7, min_s, retriever, s = self._setup()
+        llm = self.SeqLLM([self.NOT_FOUND])
+        r = score_numeric("V", t7, retriever, llm, s, {"value": 6.0, "unit": "months"}, min_s)
+        self.assertGreaterEqual(len(llm.prompts), 2)
+        self.assertEqual(r.score, 0)
+        self.assertTrue(r.needs_review)
+        self.assertIn("check the proposal text by hand", r.review_reason)
+
 if __name__ == "__main__":
     unittest.main()
 

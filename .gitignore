@@ -15,3 +15,5 @@ patch_*.py
 .DS_Store
 data/proposals_formats/
 make_test_formats.py
+add_tests.py
+tests/*.bak
