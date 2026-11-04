@@ -1,6 +1,8 @@
 """Numeric scoring: unit conversion and the scoring formulas (no AI involved)."""
 import re
 
+from .currency import MONEY_RE, convert_currency, is_currency
+
 # conversion factors to MONTHS
 _TIME = {"day": 12 / 365, "week": 12 / 52, "month": 1.0, "year": 12.0}
 _ALIASES = {"days": "day", "d": "day", "weeks": "week", "wk": "week", "wks": "week", "w": "week",
@@ -21,6 +23,8 @@ def convert(value, from_unit, to_unit):
         return float(value)
     if f in _TIME and t in _TIME:
         return float(value) * _TIME[f] / _TIME[t]
+    if is_currency(from_unit) and is_currency(to_unit):
+        return convert_currency(value, from_unit, to_unit)
     raise ValueError(f"cannot convert '{from_unit}' to '{to_unit}'")
 
 
@@ -50,7 +54,8 @@ _NUM = rf"(?:\d+(?:[.,]\d+)?|{_NUM_WORDS})"
 _TIME_RE = re.compile(rf"\b{_NUM}[\s-]*(?:(?:business|working|calendar)\s+)?(?:days?|weeks?|wks?|months?|mos?|years?|yrs?)\b", re.I)
 _PCT_RE = re.compile(r"\d+(?:\.\d+)?\s*(?:%|per\s?cent\b|percent\b)", re.I)
 _HINTS = {"time": "timeline schedule phases duration weeks months go-live delivery implementation plan milestones",
-          "percent": "uptime availability SLA percentage guaranteed 99 disaster recovery RTO RPO"}
+          "percent": "uptime availability SLA percentage guaranteed 99 disaster recovery RTO RPO",
+          "money": "price pricing cost total cost fees licence license subscription commercials budget"}
 
 
 def unit_pattern(unit):
@@ -60,10 +65,14 @@ def unit_pattern(unit):
         return _TIME_RE
     if u == "percent":
         return _PCT_RE
+    if is_currency(unit):
+        return MONEY_RE
     return None
 
 
 def search_hints(unit):
     """Extra search words that tend to sit next to this kind of number in a proposal."""
     u = norm_unit(unit)
+    if is_currency(unit):
+        return _HINTS["money"]
     return _HINTS["time"] if u in _TIME else _HINTS["percent"] if u == "percent" else ""
