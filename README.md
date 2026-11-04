@@ -6,13 +6,14 @@ Reads vendor proposals, scores them against an RFP and a technical rubric using 
 - **Backend** (FastAPI): one endpoint per job, with background evaluations.
 - **Frontend** (React + Vite): upload, run, ranking, evidence, overrides, downloads, chat.
 - **Dashboard** (Streamlit): the original dashboard, still available.
-<img width="685" height="399" alt="image" src="https://github.com/user-attachments/assets/624d57d8-ffd7-4edc-bf0e-e74e26d3abbd" />
-<img width="611" height="209" alt="image" src="https://github.com/user-attachments/assets/8381fbb1-cd65-4317-8526-db9cf53aaa5e" />
-<img width="653" height="289" alt="image" src="https://github.com/user-attachments/assets/f251e53b-781c-4c44-8450-f85d97492e4b" />
-<img width="749" height="251" alt="image" src="https://github.com/user-attachments/assets/8d79b055-ed0c-46f9-bb0d-7d60e48c1e08" />
-<img width="655" height="352" alt="image" src="https://github.com/user-attachments/assets/e475d34e-b819-4bc3-bcb2-3aff77968012" />
-<img width="650" height="390" alt="image" src="https://github.com/user-attachments/assets/4247a801-86c7-4bbc-9567-01aa2b17a81a" />
-<img width="692" height="387" alt="image" src="https://github.com/user-attachments/assets/f8f51269-58a5-4d9e-8c66-214342b2c16e" />
+<img width="520" height="392" alt="image" src="https://github.com/user-attachments/assets/9ef4936d-69fa-4e39-8dca-b437201d56e5" />
+<img width="494" height="392" alt="image" src="https://github.com/user-attachments/assets/fe1e4a83-202f-408d-bf97-dad0b5b9d36c" />
+<img width="507" height="299" alt="image" src="https://github.com/user-attachments/assets/cbc32d9e-6c3f-4120-a1ad-4c8949f0a51b" />
+<img width="708" height="388" alt="image" src="https://github.com/user-attachments/assets/f3560487-4132-40fe-8723-829c09c79521" />
+
+
+
+
 
 ## Features
 
