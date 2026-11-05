@@ -594,3 +594,25 @@ def update_criteria(criteria=None, sub_criteria=None):
         return payload
     finally:
         tmp.unlink(missing_ok=True)
+
+
+def preview_costs(currency, mock=False):
+    """Read each vendor's total price from the uploaded proposals and convert it into `currency` (information only)."""
+    from vea.costs import preview_costs as _preview
+    from vea.currency import CurrencyError, norm_currency
+    try:
+        code = norm_currency(currency)
+    except CurrencyError as e:
+        raise ServiceError(400, str(e))
+    if code is None:
+        raise ServiceError(400, "Choose a currency such as INR, USD, EUR, GBP or JPY.")
+    if not list_vendors():
+        raise ServiceError(400, "Upload at least one vendor's files first (POST /vendors/{name}/files).")
+    if not mock and not os.getenv("LLM_API_KEY"):
+        raise ServiceError(400, "LLM_API_KEY is not set on the server. Put it in .env, or use mock=true.")
+    try:
+        return _preview(str(_proposals_dir()), code, mock=bool(mock))
+    except CurrencyError as e:
+        raise ServiceError(400, str(e))
+    except (RuntimeError, ValueError) as e:
+        raise ServiceError(500, "Could not read the costs: " + str(e))

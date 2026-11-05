@@ -1,6 +1,7 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { listEvaluations, getRfp, getVendors, getStatus, uploadRfp, uploadVendorFiles, startEvaluation, deleteVendor, deleteVendorFile } from "./api";
 import Ranking from "./Ranking";
+import CostPreview from "./CostPreview";
 
 const kb = (b) => (b >= 1024 ? `${(b / 1024).toFixed(1)} KB` : `${b} B`);
 
@@ -95,6 +96,7 @@ export default function App() {
       <p style={{ color: "var(--muted)" }}>An evaluation uses the RFP and the vendors listed above.</p>
       <label><input type="checkbox" checked={mock} onChange={(e) => setMock(e.target.checked)} /> Mock mode (no Groq, meaningless scores)</label>
       <p style={{ color: "var(--muted)", marginBottom: 6 }}>Numeric targets (used if the RFP does not state them): T6 uptime % <input style={{ width: 70 }} value={t6} onChange={(e) => setT6(e.target.value)} /> T7 timeline in months <input style={{ width: 70 }} value={t7} onChange={(e) => setT7(e.target.value)} /></p>
+      <CostPreview mock={mock} />
       <br /><br />
       <button disabled={!rfp || vendors.length === 0} onClick={() => run(async () => { setStatus(null); const r = await startEvaluation(mock, targets()); setEvalId(r.id); })}>
         Start evaluation

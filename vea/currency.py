@@ -1,4 +1,4 @@
-﻿"""Currency handling for cost scoring. No AI involved.
+"""Currency handling for cost scoring. No AI involved.
 
 Names and symbols are normalised to ISO codes; amounts are converted through USD using a dated rate table
 (rates.json, filled in by a person). Ambiguous inputs ($, the yen/yuan sign, 'dollars') are refused, not guessed."""
@@ -82,6 +82,6 @@ def convert_currency(amount, from_unit, to_unit, rates=None):
 
 # amounts written with a currency symbol/code before them, or a currency word after them
 _SYM = r"(?:\u20b9|\u20ac|\u00a3|\u00a5|\$|US\$|Rs\.?|INR|USD|EUR|GBP|JPY|CAD|AUD|CNY|SGD)"
-_AMT = r"\d[\d,.]*(?:\s?(?:lakhs?|crores?|k|m|mn|bn|million|billion))?"
+_AMT = r"\d[\d,.]*(?:\s?(?:lakhs?|crores?|million|billion|mn|bn|k|m)\b)?"
 _WORD = r"(?:rupees|dollars|euros|pounds|yen|INR|USD|EUR|GBP|JPY)"
 MONEY_RE = re.compile(rf"(?:(?<![A-Za-z]){_SYM}\s?{_AMT}|{_AMT}\s?{_WORD}\b)", re.I)

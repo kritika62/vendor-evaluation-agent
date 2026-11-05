@@ -1,4 +1,4 @@
-﻿const BASE = "http://localhost:8000";
+const BASE = "http://localhost:8000";
 
 async function req(path, options) {
   const r = await fetch(BASE + path, options);
@@ -65,3 +65,10 @@ export const deleteVendor = (name) => req(`/vendors/${encodeURIComponent(name)}`
 export const deleteVendorFile = (name, file) =>
   req(`/vendors/${encodeURIComponent(name)}/files/${encodeURIComponent(file)}`, { method: "DELETE" });
 
+
+export const previewCosts = (currency, mock) =>
+  req("/cost-preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currency, mock }),
+  });

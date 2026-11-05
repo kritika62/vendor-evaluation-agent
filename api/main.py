@@ -179,3 +179,14 @@ def get_criteria():
 @app.put("/criteria", tags=["criteria"], summary="Edit criteria fields and/or replace the sub-criteria list")
 def update_criteria(body: CriteriaUpdate):
     return service.update_criteria(body.criteria, body.sub_criteria)
+
+
+class CostPreviewBody(BaseModel):
+    currency: str = Field(min_length=1, max_length=12, description="Costing currency code, e.g. INR, USD, EUR, GBP or JPY.")
+    mock: bool = Field(False, description="Offline test: reads prices with a simple pattern, no AI, no API key.")
+
+
+@app.post("/cost-preview", tags=["evaluations"],
+          summary="Read each vendor's total price and convert it into one currency (information only)")
+def cost_preview(body: CostPreviewBody):
+    return service.preview_costs(body.currency, body.mock)
