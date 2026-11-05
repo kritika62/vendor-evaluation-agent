@@ -44,6 +44,7 @@ class StartEvaluation(BaseModel):
     per_file: bool = Field(False, description="Treat every file as its own vendor.")
     targets: dict[str, float] = Field(default_factory=dict,
                                       description='Numeric targets that replace the RFP, e.g. {"T6": 99.9, "T7": 6}.')
+    currency: Optional[str] = Field(None, description="Costing currency code, e.g. INR, USD, EUR, GBP or JPY. Prices are converted into it.")
 
 
 class OverrideBody(BaseModel):
@@ -121,7 +122,7 @@ def delete_vendor_file(name: str, filename: str):
 @app.post("/evaluations", tags=["evaluations"], status_code=202,
           summary="Start an evaluation of everything uploaded (runs in the background)")
 def start_evaluation(body: StartEvaluation = StartEvaluation()):
-    return service.start_evaluation(body.mock, body.samples, body.per_file, body.targets)
+    return service.start_evaluation(body.mock, body.samples, body.per_file, body.targets, body.currency)
 
 
 @app.get("/evaluations", tags=["evaluations"])

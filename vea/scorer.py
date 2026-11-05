@@ -180,11 +180,23 @@ def validate_extract(p: dict) -> dict:
     return p
 
 
+MONEY_NOTE = """
+
+This value is a PRICE. Rules for money:
+- "value" is the full amount as a plain number: 900000, not "9 lakh", "900K" or "0.9M". 1 lakh = 100000 and 1 crore = 10000000.
+- "unit" is the currency exactly as the text writes it: a code such as INR, USD, EUR or JPY, or a symbol or word. NEVER convert between currencies and NEVER guess. If the text only shows a dollar sign or a yen/yuan sign with no country, return that sign as written.
+- For a vendor, give the TOTAL price for the whole contract. If only a yearly or monthly price is stated, or the total cannot be told, set "found": false.
+- For an RFP, give the stated budget or maximum price."""
+
+
 def extract_value(kind, criterion, chunks, llm, settings):
     """Ask the LLM (or mock) to pull one number + unit out of the excerpts."""
     if settings.mock:
         return validate_extract(llm.extract(criterion, chunks))
     system = EXTRACT_VENDOR_PROMPT if kind == "vendor" else EXTRACT_RFP_PROMPT
+    from .currency import is_currency
+    if is_currency(criterion.unit):
+        system = system + MONEY_NOTE
     user = (f"VALUE WANTED: {criterion.name} - {criterion.description} (unit expected: {criterion.unit})\n\n"
             + "\n\n".join(f"{_excerpt_label(i, c)}\n{c.text}" for i, c in enumerate(chunks, 1)))
     return validate_extract(llm.complete_json(system, user))
@@ -298,15 +310,23 @@ def score_numeric(vendor, criterion, retriever, llm, settings, target, min_manda
     else:
         try:
             x = convert(ex["value"], ex["unit"], criterion.unit)
+            rate_note = ""
+            try:
+                from .currency import is_currency, norm_currency, rates_date
+                if is_currency(ex["unit"]) and is_currency(criterion.unit) and norm_currency(ex["unit"]) != norm_currency(criterion.unit):
+                    rate_note = " Exchange rates dated " + (rates_date() or "unknown") + " (rates.json)."
+            except ValueError:
+                pass
             T = target["value"]
             if criterion.method == "Lower is better":
                 score = score_lower_is_better(x, T)
-                calc = (f"Proposed {ex['value']:g} {ex['unit']} = {x:.1f} {criterion.unit}; target {T:g} {criterion.unit}. "
-                        f"Score = 5 x (2 x {T:g} - {x:.1f}) / {T:g} = {score:.2f}")
+                calc = (f"Proposed {ex['value']:,.10g} {ex['unit']} = {x:,.1f} {criterion.unit}; target {T:,.10g} {criterion.unit}. "
+                        f"Score = 5 x (2 x {T:,.10g} - {x:,.1f}) / {T:,.10g} = {score:.2f}")
             else:
                 score = score_higher_is_better(x, T, criterion.floor)
                 calc = (f"Proposed {ex['value']:g} {ex['unit']}; target {T:g}, floor {criterion.floor:g}. "
                         f"Score = 5 x ({x:g} - {criterion.floor:g}) / ({T:g} - {criterion.floor:g}) = {score:.2f}")
+            calc += rate_note
         except ValueError as e:
             reasons.append(f"unit problem: {e}")
             calc, conf = f"Could not convert '{ex['unit']}' to {criterion.unit}.", "low"

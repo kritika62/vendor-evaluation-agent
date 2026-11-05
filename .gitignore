@@ -21,3 +21,6 @@ patch_deploy.py
 DEPLOY.md.bak
 patch_chat.py
 vea/chat.py.bak
+test_out.txt
+*.bak4
+patch_cost.py

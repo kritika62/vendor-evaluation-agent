@@ -254,12 +254,20 @@ def _now():
     return datetime.now().isoformat(timespec="seconds")
 
 
-def start_evaluation(mock=False, samples=1, per_file=False, targets=None):
+def start_evaluation(mock=False, samples=1, per_file=False, targets=None, currency=None):
     vendors = list_vendors()
     if not vendors:
         raise ServiceError(400, "Upload at least one vendor's files first (POST /vendors/{name}/files).")
     if not mock and not os.getenv("LLM_API_KEY"):
         raise ServiceError(400, "LLM_API_KEY is not set on the server. Put it in .env, or start with mock=true.")
+    if currency:
+        from vea.currency import CurrencyError, norm_currency
+        try:
+            currency = norm_currency(currency)
+        except CurrencyError as e:
+            raise ServiceError(400, str(e))
+        if currency is None:
+            raise ServiceError(400, "Unknown costing currency. Use a code such as INR, USD, EUR, GBP or JPY.")
     eval_id = f"{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
     folder = _evals_dir() / eval_id
     inputs = folder / "inputs"
@@ -269,7 +277,7 @@ def start_evaluation(mock=False, samples=1, per_file=False, targets=None):
         (inputs / "rfp").mkdir(parents=True)
         shutil.copy2(rfp, inputs / "rfp" / rfp.name)
     shutil.copy2(template_path(), inputs / "scorecard_template.xlsx")      # the criteria used for THIS run
-    options = {"mock": bool(mock), "samples": int(samples), "per_file": bool(per_file), "targets": targets or {}}
+    options = {"mock": bool(mock), "samples": int(samples), "per_file": bool(per_file), "targets": targets or {}, "currency": currency or None}
     _write_job(folder, {"id": eval_id, "status": "queued", "percent": 0, "message": "Waiting to start",
                         "created": _now(), "started": None, "finished": None, "options": options,
                         "vendors": [v["vendor"] for v in vendors], "error": None, "log": []})
@@ -295,7 +303,7 @@ def _run(eval_id):
         run_evaluation(str(inputs / "proposals"), str(folder / "output" / "scorecard.xlsx"),
                        rfp=str(rfp_files[0]) if rfp_files else None, template=str(inputs / "scorecard_template.xlsx"),
                        samples=opts["samples"], per_file=opts["per_file"], mock=opts["mock"], confirm=False,
-                       interactive=False, target_overrides=opts.get("targets") or None, progress=progress)
+                       interactive=False, target_overrides=opts.get("targets") or None, currency=opts.get("currency"), progress=progress)
         _update_job(eval_id, status="done", percent=100, message="Finished", finished=_now())
     except EvaluationError as e:
         _update_job(eval_id, status="failed", error=str(e), finished=_now())

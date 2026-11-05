@@ -26,7 +26,7 @@ class EvaluationError(Exception):
 
 
 def run_evaluation(proposals, out, rfp=None, template="template/scorecard_template.xlsx", samples=1,
-                   per_file=False, mock=False, confirm=False, interactive=True, target_overrides=None,
+                   per_file=False, mock=False, confirm=False, interactive=True, target_overrides=None, currency=None,
                    progress=None):
     """Score every vendor in `proposals` and write the scorecard workbook to `out`.
 
@@ -55,6 +55,17 @@ def run_evaluation(proposals, out, rfp=None, template="template/scorecard_templa
     for c in criteria:
         if target_overrides and c.id in target_overrides:
             c.target = float(target_overrides[c.id])
+    if currency:
+        from .currency import CurrencyError, is_currency, norm_currency
+        try:
+            code = norm_currency(currency)
+        except CurrencyError as e:
+            raise EvaluationError(str(e))
+        if code is None:
+            raise EvaluationError("Unknown costing currency '" + str(currency) + "'. Use a code such as INR, USD, EUR, GBP or JPY.")
+        for c in criteria:
+            if is_currency(c.unit):
+                c.unit = code
     say.total = 1 + len(vendors) * (len(criteria) + 1) + 1
     n_sub = sum(len(c.subs) for c in criteria)
     say(f"{len(vendors)} vendor(s); {len(criteria)} criteria, {n_sub} sub-criteria")
