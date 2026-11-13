@@ -25,13 +25,48 @@ class EvaluationError(Exception):
     pass
 
 
+def costs_path_for_out(out):
+    """Where the costs of an evaluation are saved: next to its scorecard."""
+    return Path(out).with_name("costs.json")
+
+
+def read_costs(proposals, code, per_file, mock, llm, settings, vendors):
+    """Read each scored vendor's price and contract total in `code`. Never raises: a failure is saved as 'error'."""
+    from .costs import preview_costs
+    try:
+        data = preview_costs(proposals, code, mock=mock, llm=None if mock else llm, settings=settings, per_file=per_file)
+        data["vendors"] = [r for r in data["vendors"] if r["vendor"] in vendors]
+        data["error"] = ""
+    except Exception as e:                                # information only: never fail the evaluation over costs
+        data = {"currency": code, "rates_date": "", "mock": bool(mock), "vendors": [],
+                "error": f"{type(e).__name__}: {e}"}
+    return data
+
+
+def save_costs(out, costs):
+    path = costs_path_for_out(out)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(costs, indent=2), encoding="utf-8")
+    return path
+
+
+def load_costs(out):
+    """The saved costs of an evaluation, or None if it has none (older evaluations)."""
+    path = costs_path_for_out(out)
+    if not path.is_file():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def run_evaluation(proposals, out, rfp=None, template="template/scorecard_template.xlsx", samples=1,
                    per_file=False, mock=False, confirm=False, interactive=True, target_overrides=None, currency=None,
-                   progress=None):
+                   cost_currency=None, progress=None):
     """Score every vendor in `proposals` and write the scorecard workbook to `out`.
 
     confirm / interactive: ask the user at the keyboard about numeric targets (command line only).
     target_overrides: {criterion_id: number} that replaces the target read from the RFP.
+    cost_currency: if set, each vendor's price, contract length and total are read and saved next to the scorecard
+    (costs.json) in this currency. Information only: it never changes a score, and a failure never fails the run.
     Returns {"out", "rows" (ranking rows), "vendors", "files", "log_path", "chunks_path"}.
     """
     s = Settings(n_samples=samples, mock=mock)
@@ -66,7 +101,16 @@ def run_evaluation(proposals, out, rfp=None, template="template/scorecard_templa
         for c in criteria:
             if is_currency(c.unit):
                 c.unit = code
-    say.total = 1 + len(vendors) * (len(criteria) + 1) + 1
+    cost_code = None
+    if cost_currency:
+        from .currency import CurrencyError, norm_currency
+        try:
+            cost_code = norm_currency(cost_currency)
+        except CurrencyError as e:
+            raise EvaluationError(str(e))
+        if cost_code is None:
+            raise EvaluationError("Unknown costing currency '" + str(cost_currency) + "'. Use a code such as INR, USD, EUR, GBP or JPY.")
+    say.total = 1 + len(vendors) * (len(criteria) + 1) + 1 + (1 if cost_code else 0)
     n_sub = sum(len(c.subs) for c in criteria)
     say(f"{len(vendors)} vendor(s); {len(criteria)} criteria, {n_sub} sub-criteria")
     try:
@@ -122,9 +166,16 @@ def run_evaluation(proposals, out, rfp=None, template="template/scorecard_templa
         summaries[v] = summarize_vendor(v, scores_by_vendor[v], next(r for r in rows if r["vendor"] == v), llm, s.mock)
         say(f"Summary written for {v}", 1)
 
+    costs, costs_path = None, None
+    if cost_code:
+        costs = read_costs(proposals, cost_code, per_file, s.mock, llm, s, list(scores_by_vendor))
+        say("Costs read" if not costs.get("error") else "Costs could not be read (the evaluation continues)", 1)
+
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    write_workbook(template, str(out), criteria, scores_by_vendor, summaries, targets, files_by_vendor)
+    if costs is not None:
+        costs_path = save_costs(out, costs)
+    write_workbook(template, str(out), criteria, scores_by_vendor, summaries, targets, files_by_vendor, costs)
     log_path = out.with_suffix(".log.json")
     log_path.write_text(json.dumps({v: [x.as_dict() for x in sc] for v, sc in scores_by_vendor.items()}, indent=2),
                         encoding="utf-8")
@@ -132,4 +183,5 @@ def run_evaluation(proposals, out, rfp=None, template="template/scorecard_templa
     save_chunks(chunks_path, {v: chunks_by_vendor[v] for v in scores_by_vendor})   # for proposal search in chat
     say("Scorecard saved", 1)
     return {"out": str(out), "rows": rows, "vendors": list(scores_by_vendor), "files": files_by_vendor,
-            "log_path": str(log_path), "chunks_path": str(chunks_path)}
+            "log_path": str(log_path), "chunks_path": str(chunks_path),
+            "costs": costs, "costs_path": str(costs_path) if costs_path else None}

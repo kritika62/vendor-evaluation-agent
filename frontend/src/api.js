@@ -27,11 +27,11 @@ export function uploadVendorFiles(name, files) {
   return req(`/vendors/${encodeURIComponent(name)}/files`, { method: "POST", body: f });
 }
 
-export function startEvaluation(mock, targets) {
+export function startEvaluation(mock, targets, costCurrency) {
   return req("/evaluations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mock, targets }),
+    body: JSON.stringify({ mock, targets, cost_currency: costCurrency || null }),
   });
 }
 

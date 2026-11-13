@@ -28,3 +28,4 @@ data/proposals/vendor_d_price.txt
 data/proposals/vendor_d_price.txt
 *.bak5
 patch_preview.py
+*.bak*

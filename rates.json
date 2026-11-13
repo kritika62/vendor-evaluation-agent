@@ -1,5 +1,11 @@
 ﻿{
-  "date": "",
-  "note": "Units of each currency per 1 USD. Fill from a trusted source and set the date. USD is always 1.",
-  "per_usd": {"USD": 1, "INR": null, "EUR": null, "GBP": null, "JPY": null}
+  "date": "2026-11-05",
+  "note": "Units of each currency per 1 USD. USD is always 1.",
+  "per_usd": {
+    "USD": 1,
+    "INR": 94.5225,
+    "EUR": 0.887973,
+    "GBP": 0.741136,
+    "JPY": 157.843
+  }
 }

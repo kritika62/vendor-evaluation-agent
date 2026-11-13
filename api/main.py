@@ -45,6 +45,7 @@ class StartEvaluation(BaseModel):
     targets: dict[str, float] = Field(default_factory=dict,
                                       description='Numeric targets that replace the RFP, e.g. {"T6": 99.9, "T7": 6}.')
     currency: Optional[str] = Field(None, description="Costing currency code, e.g. INR, USD, EUR, GBP or JPY. Prices are converted into it.")
+    cost_currency: Optional[str] = Field(None, description="If set, each vendor's price, contract length and total are read and saved with the evaluation in this currency. Information only: no effect on scores.")
 
 
 class OverrideBody(BaseModel):
@@ -122,7 +123,7 @@ def delete_vendor_file(name: str, filename: str):
 @app.post("/evaluations", tags=["evaluations"], status_code=202,
           summary="Start an evaluation of everything uploaded (runs in the background)")
 def start_evaluation(body: StartEvaluation = StartEvaluation()):
-    return service.start_evaluation(body.mock, body.samples, body.per_file, body.targets, body.currency)
+    return service.start_evaluation(body.mock, body.samples, body.per_file, body.targets, body.currency, body.cost_currency)
 
 
 @app.get("/evaluations", tags=["evaluations"])
@@ -151,6 +152,12 @@ def vendor_detail(eval_id: str, name: str):
            summary="Override a criterion or sub-criterion score (e.g. T4 or T4.2)")
 def override_score(eval_id: str, item_id: str, body: OverrideBody):
     return service.override_score(eval_id, item_id, body.vendor, body.score, body.reason)
+
+
+@app.get("/evaluations/{eval_id}/costs", tags=["results"],
+         summary="Costs saved with this evaluation (information only; saved=false if it has none)")
+def evaluation_costs(eval_id: str):
+    return service.get_costs(eval_id)
 
 
 @app.get("/evaluations/{eval_id}/overrides", tags=["results"])

@@ -11,6 +11,7 @@ export default function App() {
   const [vendorName, setVendorName] = useState("");
   const [vendorFiles, setVendorFiles] = useState([]);
   const [mock, setMock] = useState(true);
+  const [currency, setCurrency] = useState("INR");
   const [t6, setT6] = useState("99.9");
   const [t7, setT7] = useState("6");
   const targets = () => { const o = {}; if (t6 !== "") o.T6 = Number(t6); if (t7 !== "") o.T7 = Number(t7); return o; };
@@ -96,9 +97,9 @@ export default function App() {
       <p style={{ color: "var(--muted)" }}>An evaluation uses the RFP and the vendors listed above.</p>
       <label><input type="checkbox" checked={mock} onChange={(e) => setMock(e.target.checked)} /> Mock mode (no Groq, meaningless scores)</label>
       <p style={{ color: "var(--muted)", marginBottom: 6 }}>Numeric targets (used if the RFP does not state them): T6 uptime % <input style={{ width: 70 }} value={t6} onChange={(e) => setT6(e.target.value)} /> T7 timeline in months <input style={{ width: 70 }} value={t7} onChange={(e) => setT7(e.target.value)} /></p>
-      <CostPreview mock={mock} />
+      <CostPreview mock={mock} currency={currency} onCurrency={setCurrency} />
       <br /><br />
-      <button disabled={!rfp || vendors.length === 0} onClick={() => run(async () => { setStatus(null); const r = await startEvaluation(mock, targets()); setEvalId(r.id); })}>
+      <button disabled={!rfp || vendors.length === 0} onClick={() => run(async () => { setStatus(null); const r = await startEvaluation(mock, targets(), currency); setEvalId(r.id); })}>
         Start evaluation
       </button>{" "}
       {latest && !evalId && (

@@ -254,7 +254,7 @@ def _now():
     return datetime.now().isoformat(timespec="seconds")
 
 
-def start_evaluation(mock=False, samples=1, per_file=False, targets=None, currency=None):
+def start_evaluation(mock=False, samples=1, per_file=False, targets=None, currency=None, cost_currency=None):
     vendors = list_vendors()
     if not vendors:
         raise ServiceError(400, "Upload at least one vendor's files first (POST /vendors/{name}/files).")
@@ -268,6 +268,14 @@ def start_evaluation(mock=False, samples=1, per_file=False, targets=None, curren
             raise ServiceError(400, str(e))
         if currency is None:
             raise ServiceError(400, "Unknown costing currency. Use a code such as INR, USD, EUR, GBP or JPY.")
+    if cost_currency:
+        from vea.currency import CurrencyError, norm_currency
+        try:
+            cost_currency = norm_currency(cost_currency)
+        except CurrencyError as e:
+            raise ServiceError(400, str(e))
+        if cost_currency is None:
+            raise ServiceError(400, "Unknown costing currency. Use a code such as INR, USD, EUR, GBP or JPY.")
     eval_id = f"{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
     folder = _evals_dir() / eval_id
     inputs = folder / "inputs"
@@ -277,7 +285,8 @@ def start_evaluation(mock=False, samples=1, per_file=False, targets=None, curren
         (inputs / "rfp").mkdir(parents=True)
         shutil.copy2(rfp, inputs / "rfp" / rfp.name)
     shutil.copy2(template_path(), inputs / "scorecard_template.xlsx")      # the criteria used for THIS run
-    options = {"mock": bool(mock), "samples": int(samples), "per_file": bool(per_file), "targets": targets or {}, "currency": currency or None}
+    options = {"mock": bool(mock), "samples": int(samples), "per_file": bool(per_file), "targets": targets or {}, "currency": currency or None,
+               "cost_currency": cost_currency or None}
     _write_job(folder, {"id": eval_id, "status": "queued", "percent": 0, "message": "Waiting to start",
                         "created": _now(), "started": None, "finished": None, "options": options,
                         "vendors": [v["vendor"] for v in vendors], "error": None, "log": []})
@@ -303,7 +312,8 @@ def _run(eval_id):
         run_evaluation(str(inputs / "proposals"), str(folder / "output" / "scorecard.xlsx"),
                        rfp=str(rfp_files[0]) if rfp_files else None, template=str(inputs / "scorecard_template.xlsx"),
                        samples=opts["samples"], per_file=opts["per_file"], mock=opts["mock"], confirm=False,
-                       interactive=False, target_overrides=opts.get("targets") or None, currency=opts.get("currency"), progress=progress)
+                       interactive=False, target_overrides=opts.get("targets") or None, currency=opts.get("currency"),
+                       cost_currency=opts.get("cost_currency"), progress=progress)
         _update_job(eval_id, status="done", percent=100, message="Finished", finished=_now())
     except EvaluationError as e:
         _update_job(eval_id, status="failed", error=str(e), finished=_now())
@@ -358,6 +368,17 @@ def get_results(eval_id):
     res = load_results(str(path))
     _results_cache[eval_id] = (mtime, res)
     return res
+
+
+def get_costs(eval_id):
+    """The costs saved with this evaluation: {"saved": False} for an evaluation that has none (older runs)."""
+    from vea.pipeline import load_costs
+    _xlsx(eval_id)                                        # 404/409 rules: the evaluation must exist and be done
+    data = load_costs(_eval_dir(eval_id) / "output" / "scorecard.xlsx")
+    if data is None:
+        return {"saved": False, "currency": None, "rates_date": "", "vendors": [], "error": ""}
+    data["saved"] = True
+    return data
 
 
 def _nz(v):
@@ -489,6 +510,9 @@ def download(eval_id, fmt, min_score=None, shortlist_n=None):
     if fmt == "xlsx":
         return _xlsx(eval_id).read_bytes(), f"{eval_id}_scorecard.xlsx", XLSX_MIME
     res = get_results(eval_id)
+    costs = get_costs(eval_id)
+    if costs.get("saved"):                                 # costs are information only; the cached results stay untouched
+        res = {**res, "costs": costs}
     data, name, mime = export(res, compute(res, min_score=min_score, shortlist_n=shortlist_n), fmt)
     return data, f"{eval_id}_{name}", mime
 

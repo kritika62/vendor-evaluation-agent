@@ -245,7 +245,32 @@ def _build_summary(wb, criteria, vendors, last, totals_rows):
     sm.column_dimensions["G"].width = max(sm.column_dimensions["G"].width or 0, 38)
 
 
-def write_workbook(template_path, out_path, criteria, scores_by_vendor, summaries, targets=None, files=None):
+def _build_costs(wb, costs):
+    """Costs sheet: information only, never read by the scoring."""
+    ws = wb.create_sheet("Costs")
+    cur = costs.get("currency") or ""
+    ws.append(["Vendor", "Found", "Price as written", "Written currency", "Quoted as", "Contract years",
+               "Total over contract", f"Price in {cur} (as quoted)", f"Total in {cur}", "Exchange rates dated",
+               "Price quote", "Contract length quote", "Source", "Status", "Note"])
+    basis = {"total": "Total", "per_year": "Per year", "per_month": "Per month", "other": "Other basis"}
+    for r in costs.get("vendors", []):
+        ws.append([r.get("vendor"), "Yes" if r.get("found") else "No", r.get("amount"), r.get("written_currency"),
+                   basis.get(r.get("basis"), ""), r.get("term_years"), r.get("total"), r.get("converted"),
+                   r.get("converted_total"), costs.get("rates_date"), r.get("quote"), r.get("term_quote"),
+                   r.get("source"), r.get("status"), r.get("note")])
+    if costs.get("error"):
+        ws.append([f"The costs could not be read: {costs['error']}"])
+    _style_header(ws, 1, 15); _body_style(ws)
+    for row in ws.iter_rows(min_row=2):
+        for i in (2, 6, 7, 8):                             # number columns: C, G, H, I
+            row[i].number_format = "#,##0.00"
+    for col, w in zip("ABCDEFGHIJKLMNO", [20, 8, 16, 11, 11, 10, 18, 20, 18, 12, 40, 28, 14, 14, 50]):
+        ws.column_dimensions[col].width = w
+    ws.freeze_panes = "A2"
+    ws["A" + str(ws.max_row + 2)] = "Information only: costs do not affect any score."
+
+
+def write_workbook(template_path, out_path, criteria, scores_by_vendor, summaries, targets=None, files=None, costs=None):
     wb = load_workbook(template_path)  # keeps Criteria / SubCriteria / Guide sheets and their validation
     vendors = list(scores_by_vendor)
     layout, last, totals_rows = _build_scorecard(wb, criteria, vendors, scores_by_vendor)
@@ -296,4 +321,8 @@ def write_workbook(template_path, out_path, criteria, scores_by_vendor, summarie
     _style_header(vf, 1, 3); _body_style(vf)
     for col, w in zip("ABC", [24, 44, 10]):
         vf.column_dimensions[col].width = w
+    if "Costs" in wb.sheetnames:
+        del wb["Costs"]
+    if costs and (costs.get("vendors") or costs.get("error")):
+        _build_costs(wb, costs)
     wb.save(out_path)

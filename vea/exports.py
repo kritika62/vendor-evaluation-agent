@@ -35,6 +35,51 @@ def _num(v, nd=2):
         return _clean(v)
 
 
+def _money(v):
+    """12345.6 -> '12,345.60'; 900000.0 -> '900,000'; None -> '-'."""
+    try:
+        if v is None or v != v:
+            return "-"
+        v = float(v)
+        return f"{v:,.0f}" if abs(v - round(v)) < 0.005 else f"{v:,.2f}"
+    except (TypeError, ValueError):
+        return _clean(v)
+
+
+_BASIS = {"total": "Total", "per_year": "Per year", "per_month": "Per month", "other": "Other basis"}
+
+
+def _cost_status(r):
+    note = (r.get("note") or "").replace("offline test reading (no AI, first amount found): ", "").strip()
+    status = r.get("status") or "needs review"
+    return status if not note else f"{status}: {note}"
+
+
+def _costs_table(res):
+    """None if this evaluation has no saved costs. Otherwise (intro text, header, rows), the same in every format."""
+    c = res.get("costs") if isinstance(res, dict) else None
+    if not c or not (c.get("vendors") or c.get("error")):
+        return None
+    cur = c.get("currency") or ""
+    if not c.get("vendors"):
+        return (f"The costs could not be read for this evaluation ({c.get('error')}).", [], [])
+    intro = (f"Prices as quoted by each vendor, the total over the contract worked out in code, and the total in {cur}. "
+             f"Exchange rates dated {c.get('rates_date') or 'unknown'}. Information only: costs do not change any score.")
+    head = ["Vendor", "Price as written", "Quoted as", "Contract years", "Total over contract", f"Total in {cur}", "Status / note"]
+    rows = []
+    for r in c["vendors"]:
+        if not r.get("found"):
+            rows.append([_clean(r.get("vendor")), "-", "-", "-", "-", "-", _cost_status(r)])
+            continue
+        wc = r.get("written_currency") or ""
+        rows.append([_clean(r.get("vendor")), f"{_money(r.get('amount'))} {wc}".strip(),
+                     _BASIS.get(r.get("basis"), "-"),
+                     "-" if r.get("term_years") is None else f"{r['term_years']:g}",
+                     "-" if r.get("total") is None else f"{_money(r['total'])} {wc}".strip(),
+                     _money(r.get("converted_total")), _cost_status(r)])
+    return intro, head, rows
+
+
 def _settings(out):
     return (f"Mandatory minimum score: {out['min_score']:g}   |   Shortlist size: {out['shortlist_n']}")
 
@@ -174,6 +219,11 @@ _GROUPS = [("selected", "Selected (shortlisted)"), ("qualified", "Passed all man
 # ---------------------------------------------------------------- CSV / JSON / Markdown
 def to_csv(res, out):
     head, rows = _ranking_rows(out)
+    ct = _costs_table(res)
+    if ct and ct[2]:                                       # add each vendor's costs to its ranking row
+        by_vendor = {r[0]: r[1:] for r in ct[2]}
+        head = head + ct[1][1:]
+        rows = [r + by_vendor.get(r[1], ["-"] * (len(ct[1]) - 1)) for r in rows]
     return pd.DataFrame(rows, columns=head).to_csv(index=False).encode("utf-8")
 
 
@@ -189,6 +239,8 @@ def to_json(res, out):
         "category_scores": json.loads(out["categories"].to_json()),
         "vendors": {v: _vendor_detail(res, out, v) for v in res["scores"]},
     }
+    if isinstance(res, dict) and res.get("costs"):
+        data["costs"] = {k: v for k, v in res["costs"].items() if k != "saved"}
     return json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8")
 
 
@@ -213,6 +265,9 @@ def to_md(res, out):
     parts += ["## Ranking", _md_table(h, r), "",
              "## Average score by category", _md_table(*_matrix(out["categories"], "Category")), "",
              "## Scores by criterion", _md_table(*_matrix(out["criteria_scores"], "Criterion")), ""]
+    ct = _costs_table(res)
+    if ct:
+        parts += ["## Costs (information only)", f"_{ct[0]}_", ""] + ([_md_table(ct[1], ct[2]), ""] if ct[2] else [])
     for v in res["scores"]:
         d = _vendor_detail(res, out, v)
         parts += [f"## {v}"]
@@ -333,6 +388,11 @@ def to_pdf(res, out):
                     "mandatory criterion is rejected.", small)]
     s += [Paragraph("Average score by category", h2), table(*_matrix(out["categories"], "Category"))]
     s += [Paragraph("Scores by criterion", h2), table(*_matrix(out["criteria_scores"], "Criterion"))]
+    ct = _costs_table(res)
+    if ct:
+        s += [Paragraph("Costs (information only)", h2), Paragraph(safe(ct[0]), small), Spacer(1, 3)]
+        if ct[2]:
+            s.append(table(ct[1], ct[2], [11, 15, 9, 8, 17, 14, 26]))
 
     for v in res["scores"]:
         d = _vendor_detail(res, out, v)
@@ -471,6 +531,12 @@ def to_docx(res, out):
     table(*_matrix(out["categories"], "Category"))
     doc.add_heading("Scores by criterion", 1)
     table(*_matrix(out["criteria_scores"], "Criterion"))
+    ct = _costs_table(res)
+    if ct:
+        doc.add_heading("Costs (information only)", 1)
+        doc.add_paragraph(ct[0])
+        if ct[2]:
+            table(ct[1], ct[2])
     for v in res["scores"]:
         d = _vendor_detail(res, out, v)
         doc.add_page_break()

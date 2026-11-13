@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 import tempfile
 import unittest
@@ -25,8 +25,9 @@ class BrokenLLM:
         raise RuntimeError("boom")
 
 
-def found(value, unit, quote):
-    return {"found": True, "value": value, "unit": unit, "evidence_quote": quote, "pages": [1]}
+def found(value, unit, quote, basis="total", term_value=None, term_unit="", term_quote=""):
+    return {"found": True, "value": value, "unit": unit, "basis": basis, "term_value": term_value,
+            "term_unit": term_unit, "evidence_quote": quote, "term_quote": term_quote, "pages": [1]}
 
 
 class CostPreviewTests(unittest.TestCase):
@@ -83,10 +84,10 @@ class CostPreviewTests(unittest.TestCase):
 
     def test_no_price_found_is_flagged(self):
         _, r = self._run("Our platform covers all functional requirements.",
-                         {"found": False, "value": 0, "unit": "", "evidence_quote": "", "pages": []})
+                         {"found": False, "value": 0, "unit": "", "basis": "other", "evidence_quote": "", "pages": []})
         self.assertFalse(r["found"])
         self.assertEqual(r["status"], "needs review")
-        self.assertIn("No total price", r["note"])
+        self.assertIn("No price found", r["note"])
 
     def test_missing_exchange_rate_is_flagged(self):
         _, r = self._run("Pricing. The total price is GBP 900 for everything.",
@@ -129,6 +130,73 @@ class CostPreviewTests(unittest.TestCase):
         self.assertAlmostEqual(r["converted"], 72_000_000)
         self.assertEqual(r["status"], "needs review")
         self.assertIn("offline", r["note"])
+
+    # ---- yearly / monthly prices and the contract length
+    def test_yearly_price_is_multiplied_by_the_stated_contract_length(self):
+        text = "Pricing. The licence is 10,000 USD per year. The contract runs for 3 years."
+        _, r = self._run(text, found(10000, "USD", "10,000 USD per year", "per_year", 3, "years", "runs for 3 years"))
+        self.assertEqual(r["basis"], "per_year")
+        self.assertEqual(r["term_years"], 3)
+        self.assertAlmostEqual(r["total"], 30000)
+        self.assertAlmostEqual(r["converted"], 800_000)          # one year, in INR
+        self.assertAlmostEqual(r["converted_total"], 2_400_000)  # three years, in INR
+        self.assertEqual(r["status"], "ok")
+
+    def test_contract_length_in_months_is_converted_to_years(self):
+        text = "Pricing. The licence is 10,000 USD per year. Term: 36 months."
+        _, r = self._run(text, found(10000, "USD", "10,000 USD per year", "per_year", 36, "months", "Term: 36 months"))
+        self.assertAlmostEqual(r["term_years"], 3)
+        self.assertAlmostEqual(r["total"], 30000)
+
+    def test_monthly_price_is_multiplied_by_the_months(self):
+        text = "Pricing. Support costs 500 USD per month. The contract runs for 2 years."
+        _, r = self._run(text, found(500, "USD", "500 USD per month", "per_month", 2, "years", "runs for 2 years"))
+        self.assertAlmostEqual(r["total"], 12000)               # 500 x 24 months
+        self.assertAlmostEqual(r["converted_total"], 960_000)
+
+    def test_yearly_price_without_a_stated_length_is_not_totalled(self):
+        _, r = self._run("Pricing. The licence is 10,000 USD per year.",
+                         found(10000, "USD", "10,000 USD per year", "per_year"))
+        self.assertIsNone(r["total"])
+        self.assertIsNone(r["converted_total"])
+        self.assertAlmostEqual(r["converted"], 800_000)          # the yearly price is still shown
+        self.assertEqual(r["status"], "needs review")
+        self.assertIn("contract length not stated", r["note"])
+
+    def test_unclear_basis_is_not_totalled(self):
+        _, r = self._run("Pricing. The fee is 40 USD per user.", found(40, "USD", "fee is 40 USD per user", "other"))
+        self.assertIsNone(r["total"])
+        self.assertIn("basis is unclear", r["note"])
+        self.assertEqual(r["status"], "needs review")
+
+    def test_total_price_needs_no_contract_length(self):
+        _, r = self._run("Pricing. The total price is 20,000 USD.", found(20000, "USD", "total price is 20,000 USD"))
+        self.assertAlmostEqual(r["converted_total"], 1_600_000)
+        self.assertEqual(r["status"], "ok")
+
+    def test_an_unreasonable_contract_length_is_flagged(self):
+        text = "Pricing. The licence is 10,000 USD per year. Term: 50 years."
+        _, r = self._run(text, found(10000, "USD", "10,000 USD per year", "per_year", 50, "years", "Term: 50 years"))
+        self.assertIsNone(r["total"])
+        self.assertIn("looks wrong", r["note"])
+
+    def test_contract_length_quote_must_be_in_the_text(self):
+        text = "Pricing. The licence is 10,000 USD per year."
+        _, r = self._run(text, found(10000, "USD", "10,000 USD per year", "per_year", 3, "years", "invented sentence"))
+        self.assertIn("verbatim", r["note"])
+        self.assertEqual(r["status"], "needs review")
+
+    def test_odd_ai_fields_are_repaired_to_safe_values(self):
+        _, r = self._run("Pricing. The total price is 20,000 USD.",
+                         found(20000, "USD", "total price is 20,000 USD", basis="weekly", term_value=-2, term_unit="years"))
+        self.assertEqual(r["basis"], "other")                    # unknown basis is never treated as a total
+        self.assertIsNone(r["total"])
+
+    def test_mock_mode_detects_a_yearly_price_and_a_numeric_contract_length(self):
+        _, r = self._run("Pricing. The licence is EUR 100,000 per year. The contract is for 3 years.", mock_mode=True)
+        self.assertEqual(r["basis"], "per_year")
+        self.assertAlmostEqual(r["total"], 300000)
+        self.assertAlmostEqual(r["converted_total"], 300000 / 0.5 * 80)
 
 
 if __name__ == "__main__":
