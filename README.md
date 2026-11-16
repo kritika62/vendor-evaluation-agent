@@ -1,10 +1,10 @@
-﻿# Vendor Evaluation Agent
+# Vendor Evaluation Agent
 
 Reads vendor proposals, scores them against an RFP and a technical rubric using an LLM, and shows the ranking with page-level evidence. A person can review, override scores, download reports and ask questions about the results.
 
 - **Scoring pipeline** (Python): parse, chunk, embed, retrieve, rerank, LLM scoring, aggregation, Excel scorecard.
 - **Backend** (FastAPI): one endpoint per job, with background evaluations.
-- **Frontend** (React + Vite): upload, run, ranking, evidence, overrides, downloads, chat.
+- **Frontend** (React + Vite): upload, run, ranking, evidence, overrides, cost preview, downloads, chat.
 - **Dashboard** (Streamlit): the original dashboard, still available.
 <img width="520" height="392" alt="image" src="https://github.com/user-attachments/assets/9ef4936d-69fa-4e39-8dca-b437201d56e5" />
 <img width="494" height="392" alt="image" src="https://github.com/user-attachments/assets/fe1e4a83-202f-408d-bf97-dad0b5b9d36c" />
@@ -22,6 +22,7 @@ Reads vendor proposals, scores them against an RFP and a technical rubric using 
 - Numeric criteria (for example uptime, timeline): the AI only extracts the vendor's number and unit; code converts units and applies the formula against the RFP target.
 - Mandatory criteria act as a pass/fail gate. A vendor below the minimum score (default 3 of 5) on any mandatory criterion is rejected and not ranked. The minimum and shortlist size are adjustable without re-running the AI.
 - Weak or uncertain scores are flagged for human review. Scores can be overridden with a reason; the original AI score is kept.
+- Cost totals: yearly price multiplied by contract length, with currency conversion using the rates in `rates.json`. Costs are previewed before a run and saved with each evaluation, so they can be reopened later and included in the exports.
 - Downloads: PDF, Word, CSV, JSON, Markdown, Excel.
 - Chat assistant that answers from the scorecard and proposal text. Numbers come from code, never from the model.
 
@@ -83,6 +84,15 @@ Typical use:
 
 Mock mode makes no LLM calls and gives meaningless scores. It only proves the plumbing works.
 
+## Costs
+
+Each vendor's yearly price is multiplied by the contract length to give a total, and amounts in other currencies are converted using `rates.json`. The totals are saved with the evaluation.
+
+- `POST /cost-preview`: preview the cost totals before running an evaluation.
+- `GET /evaluations/{eval_id}/costs`: the costs saved with an evaluation.
+
+`rates.json` holds the exchange rates and the date they were set. Update it when you need current rates.
+
 ## Run from the command line
 
 ```powershell
@@ -102,6 +112,7 @@ Reads `output/scorecard.xlsx` (or upload it in the sidebar). Tabs: Ranking, Cate
 ## Inputs
 
 - `template/scorecard_template.xlsx`: the rubric lives on its Criteria and SubCriteria sheets (criteria, weights, mandatory flags, anchors, sub-criteria). Weights inside one criterion must total 100%. The shipped sub-criteria are drafts; edit them to match your RFP.
+- `rates.json`: currency exchange rates and their date, used for the cost totals.
 - `data/proposals/`: sample proposals (fictional vendors A, B, C). A sub-folder is one vendor; loose files named `Vendor__anything.ext` share a vendor; any other loose file is its own vendor.
 - `data/rfp/`: a sample RFP.
 
@@ -120,8 +131,10 @@ Not addressed in the proposal, low model confidence, quote not found verbatim in
 ## Tests
 
 ```powershell
-python -m unittest tests.test_pipeline tests.test_dashboard_data tests.test_api_service
+python -m unittest tests.test_pipeline tests.test_dashboard_data tests.test_api_service tests.test_currency tests.test_cost_scoring tests.test_costs tests.test_costs_exports tests.test_costs_saved
 ```
+
+This runs 89 tests and takes about a minute.
 
 ## Known limitations
 
@@ -135,4 +148,3 @@ python -m unittest tests.test_pipeline tests.test_dashboard_data tests.test_api_
 
 - Check which AI tools are approved before using real company proposals, and keep confidential data off personal accounts.
 - The sample vendors are fictional.
-
