@@ -12,21 +12,25 @@ The LLM key stays in `.env` on the server; nothing sends it to the browser.
 ## Typical order
 1. `POST /rfp` - upload the RFP (replaces the previous one).
 2. `POST /vendors/{name}/files` - upload one or more files (pdf, docx, pptx, xlsx, txt) for a vendor. Repeat per vendor.
-3. `POST /evaluations` - start. Body (all optional): `{"mock": false, "samples": 1, "targets": {"T6": 99.9, "T7": 6}}`.
+3. `POST /cost-preview` - optional: preview the yearly price x contract length totals before running (see `/docs` for the request body).
+4. `POST /evaluations` - start. Body (all optional): `{"mock": false, "samples": 1, "targets": {"T6": 99.9, "T7": 6}}`.
    Returns `202` with an `id`. The run happens in the background, one at a time.
-4. `GET /evaluations/{id}` - poll until `status` is `done` (`percent`, `message`, last log lines; `failed` has `error`).
-5. Read results (below).
+5. `GET /evaluations/{id}` - poll until `status` is `done` (`percent`, `message`, last log lines; `failed` has `error`).
+6. Read results (below).
 
 ## Endpoints
 | Job | Endpoint |
 |---|---|
+| Health check | `GET /health` |
 | Upload / show / delete RFP | `POST /rfp`, `GET /rfp`, `DELETE /rfp` |
-| Add files to a vendor | `POST /vendors/{name}/files` |
+| Add files to a vendor | `POST /vendors/{name}/files` (several files), `POST /vendors/{name}/file` (one file) |
 | List / delete vendors or one file | `GET /vendors`, `DELETE /vendors/{name}`, `DELETE /vendors/{name}/files/{filename}` |
+| Preview costs before a run | `POST /cost-preview` |
 | Start an evaluation | `POST /evaluations` |
 | List evaluations / status | `GET /evaluations`, `GET /evaluations/{id}` |
 | Ranking + category scores | `GET /evaluations/{id}/ranking?min_score=3&shortlist_n=2` (what-if optional) |
 | One vendor: scores, sub-scores, evidence, sources, summary | `GET /evaluations/{id}/vendors/{name}` |
+| Costs saved with the evaluation | `GET /evaluations/{id}/costs` |
 | Override a score (`T4` or `T4.2`) | `PATCH /evaluations/{id}/scores/{item_id}` body `{"vendor": "...", "score": 4, "reason": "..."}` |
 | Override history | `GET /evaluations/{id}/overrides` |
 | Download | `GET /evaluations/{id}/download?format=pdf` (pdf, docx, csv, json, md, xlsx) |
@@ -37,6 +41,8 @@ The LLM key stays in `.env` on the server; nothing sends it to the browser.
 - Vendor names: underscores become spaces (`Alpha_Systems` and `Alpha Systems` are the same vendor).
 - An evaluation snapshots the proposals, RFP and criteria at the moment it starts, so later uploads or criteria edits
   never change an old result.
+- Costs are the yearly price multiplied by the contract length, converted with the rates in `rates.json`. They are saved
+  with each evaluation, so `GET /evaluations/{id}/costs` returns the same figures later.
 - Overriding a criterion that has sub-criteria replaces its average with your number; override the sub-criterion to keep
   the average. The agent's original score stays in the workbook's Agent_Log sheet.
 - `PUT /criteria` validates a copy first (weights must total 100%, numeric criteria cannot have sub-criteria) and keeps
